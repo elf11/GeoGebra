@@ -1,0 +1,342 @@
+### Eclipse Workspace Patch 1.0
+#P test
+Index: src/test/java/geogebra/commands/NoExceptionsTest.java
+===================================================================
+--- workspace_eclipse/test/src/test/java/geogebra/commands/NoExceptionsTest.java	(revision 39263)
++++ workspace_eclipse/test/src/test/java/geogebra/commands/NoExceptionsTest.java	(working copy)
+@@ -854,6 +854,11 @@
+ 		t("GCD[ n1, n1 ]");
+ 
+ 	}
++	
++	@Test
++	public void cmdNormalize() {
++		t("Normalize[ list1 ]");
++	}
+ 
+ 	@Test
+ 	public void cmdGeometricMean() {
+#P common
+Index: src/geogebra/common/kernel/algos/AlgoNormalize.java
+===================================================================
+--- workspace_eclipse/common/src/geogebra/common/kernel/algos/AlgoNormalize.java	(nonexistent)
++++ workspace_eclipse/common/src/geogebra/common/kernel/algos/AlgoNormalize.java	(working copy)
+@@ -0,0 +1,204 @@
++package geogebra.common.kernel.algos;
++
++/* 
++ GeoGebra - Dynamic Mathematics for Everyone
++ http://www.geogebra.org
++
++ This file is part of GeoGebra.
++
++ This program is free software; you can redistribute it and/or modify it 
++ under the terms of the GNU General Public License as published by 
++ the Free Software Foundation.
++
++ */
++
++import geogebra.common.kernel.Construction;
++import geogebra.common.kernel.arithmetic.NumberValue;
++import geogebra.common.kernel.commands.Commands;
++import geogebra.common.kernel.geos.GeoElement;
++import geogebra.common.kernel.geos.GeoList;
++import geogebra.common.kernel.geos.GeoNumeric;
++import geogebra.common.kernel.geos.GeoPoint;
++
++/**
++ * Normalize values of a list between 0 and 1.
++ * 
++ * @author Oana Niculaescu
++ * @version 11-03-2015
++ */
++
++public class AlgoNormalize extends AlgoElement {
++
++	private GeoList geoList; // input
++	private GeoList normalList; // output
++	private GeoNumeric[] geoNum;
++	private GeoPoint[] geoPoint;
++
++	/**
++	 * @param cons
++	 * @param label
++	 * @param geoList
++	 */
++	public AlgoNormalize(Construction cons, String label, GeoList geoList) {
++		this(cons, geoList);
++		normalList.setLabel(label);
++	}
++
++	/**
++	 * @param cons
++	 * @param geoList
++	 */
++	public AlgoNormalize(Construction cons, GeoList geoList) {
++		super(cons);
++		this.geoList = geoList;
++		normalList = new GeoList(cons);
++
++		GeoElement geo0 = geoList.get(0);
++
++		if (geo0.isGeoPoint()) {
++			geoPoint = new GeoPoint[geoList.size()];
++			for (int i = 0; i < geoList.size(); i++) {
++				geoPoint[i] = new GeoPoint(cons);
++				geoPoint[i].setZero();
++			}
++		} else if (geo0.isGeoNumeric()) {
++			geoNum = new GeoNumeric[geoList.size()];
++			for (int i = 0; i < geoList.size(); i++) {
++				geoNum[i] = new GeoNumeric(cons);
++			}
++		}
++
++		setInputOutput();
++		compute();
++	}
++
++	@Override
++	public Commands getClassName() {
++		return Commands.Normalize;
++	}
++
++	@Override
++	protected void setInputOutput() {
++		input = new GeoElement[1];
++		input[0] = geoList;
++
++		setOutputLength(1);
++		setOutput(0, normalList);
++		setDependencies(); // done by AlgoElement
++	}
++
++	/**
++	 * @return
++	 */
++	public GeoList getResult() {
++		return normalList;
++	}
++
++	@Override
++	public final void compute() {
++
++		int size = geoList.size();
++		if (!geoList.isDefined() || size == 0) {
++			normalList.setUndefined();
++			return;
++		}
++
++		normalList.setDefined(true);
++		normalList.clear();
++
++		double normalXVal = 0, normalYVal = 0, xMinVal = Double.POSITIVE_INFINITY, xMaxVal = Double.NEGATIVE_INFINITY;
++		double yMinVal = Double.POSITIVE_INFINITY, yMaxVal = Double.NEGATIVE_INFINITY, xVal, yVal;
++
++		// get Min and Max values for the list of numbers/points
++		GeoElement geo0 = geoList.get(0);
++		GeoPoint pt = null;
++		if (geo0.isGeoNumeric()) {
++			for (int i = 0; i < size; i++) {
++				geo0 = geoList.get(i);
++				if (((NumberValue) geo0).getDouble() > xMaxVal) {
++					xMaxVal = ((NumberValue) geo0).getDouble();
++				}
++				if (((NumberValue) geo0).getDouble() < xMinVal) {
++					xMinVal = ((NumberValue) geo0).getDouble();
++				}
++			}
++			// if the list has all elements equal or, the list has just one
++			// element
++			if (xMaxVal == xMinVal) {
++				normalXVal = xMaxVal;
++			} else {
++				normalXVal = xMaxVal - xMinVal;
++			}
++		} else if (geo0.isGeoPoint()) {
++			System.out.println("Is GeoPoint");
++			for (int i = 0; i < size; i++) {
++				pt = (GeoPoint) geoList.get(i);
++				if (pt.getX() > xMaxVal) {
++					xMaxVal = pt.getX();
++				}
++				if (pt.getX() < xMinVal) {
++					xMinVal = pt.getX();
++				}
++				if (pt.getY() > yMaxVal) {
++					yMaxVal = pt.getY();
++				}
++				if (pt.getY() < yMinVal) {
++					yMinVal = pt.getY();
++				}
++			}
++			if (xMaxVal == xMinVal) {
++				normalXVal = xMaxVal;
++			} else {
++				normalXVal = xMaxVal - xMinVal;
++			}
++			if (yMaxVal == yMinVal) {
++				normalYVal = yMaxVal;
++			} else {
++				normalYVal = yMaxVal - yMinVal;
++			}
++		} else {
++			normalList.setUndefined();
++			return;
++		}
++
++		boolean suppressLabelCreation = cons.isSuppressLabelsActive();
++		cons.setSuppressLabelCreation(true);
++
++		if (geo0.isGeoNumeric()) {
++			for (int i = 0; i < size; i++) {
++				geo0 = geoList.get(i);
++				// it reaches here with with normalXVal == 0 only when we have a
++				// zero element
++				if (normalXVal == 0) {
++					xVal = 0;
++				} else {
++					xVal = (((NumberValue) geo0).getDouble() - xMinVal)
++							/ normalXVal;
++				}
++				geoNum[i].setValue(xVal);
++				geoNum[i].updateCascade();
++				normalList.add(geoNum[i]);
++			}
++		} else if (geo0.isGeoPoint()) {
++			for (int i = 0; i < size; i++) {
++				pt = (GeoPoint) geoList.get(i);
++				if (normalXVal == 0) {
++					xVal = 0;
++				} else {
++					xVal = (pt.getX() - xMinVal) / normalXVal;
++				}
++				if (normalYVal == 0) {
++					yVal = 0;
++				} else {
++					yVal = (pt.getY() - yMinVal) / normalYVal;
++				}
++				geoPoint[i].setCoords(xVal, yVal, 1.0);
++				geoPoint[i].updateCascade();
++				normalList.add(geoPoint[i]);
++			}
++		}
++
++		cons.setSuppressLabelCreation(suppressLabelCreation);
++	}
++
++}
+Index: src/geogebra/common/kernel/commands/Commands.java
+===================================================================
+--- workspace_eclipse/common/src/geogebra/common/kernel/commands/Commands.java	(revision 39263)
++++ workspace_eclipse/common/src/geogebra/common/kernel/commands/Commands.java	(working copy)
+@@ -93,7 +93,8 @@
+ 			TABLE_FUNCTION), Curvature(TABLE_FUNCTION), OsculatingCircle(
+ 			TABLE_FUNCTION), IterationList(TABLE_FUNCTION), RootList(
+ 			TABLE_FUNCTION), ImplicitCurve(TABLE_FUNCTION), ImplicitDerivative(
+-			TABLE_FUNCTION), NSolveODE(TABLE_FUNCTION), Spline(TABLE_FUNCTION),
++			TABLE_FUNCTION), NSolveODE(TABLE_FUNCTION), Spline(TABLE_FUNCTION), Normalize(
++			TABLE_FUNCTION),
+ 	// =============================================================
+ 	// conics
+ 	// =============================================================
+Index: src/geogebra/common/kernel/commands/CmdNormalize.java
+===================================================================
+--- workspace_eclipse/common/src/geogebra/common/kernel/commands/CmdNormalize.java	(nonexistent)
++++ workspace_eclipse/common/src/geogebra/common/kernel/commands/CmdNormalize.java	(working copy)
+@@ -0,0 +1,70 @@
++package geogebra.common.kernel.commands;
++
++import geogebra.common.kernel.Kernel;
++import geogebra.common.kernel.algos.AlgoNormalize;
++import geogebra.common.kernel.arithmetic.Command;
++import geogebra.common.kernel.arithmetic.VectorValue;
++import geogebra.common.kernel.geos.GeoElement;
++import geogebra.common.kernel.geos.GeoList;
++import geogebra.common.main.MyError;
++import geogebra.common.plugin.GeoClass;
++
++/**
++ * Normalize[ <List> ]
++ */
++public class CmdNormalize extends CommandProcessor {
++
++	/**
++	 * Creates new command processor
++	 * 
++	 * @param kernel
++	 *            kernel
++	 */
++	public CmdNormalize(Kernel kernel) {
++		super(kernel);
++	}
++
++	@Override
++	public GeoElement[] process(Command c) throws MyError {
++		int n = c.getArgumentNumber();
++		GeoElement[] arg;
++		arg = resArgs(c);
++		switch (n) {
++		case 0:
++			throw argNumErr(app, c.getName(), n);
++		case 1:
++			arg = resArgs(c);
++			if (arg[0].isGeoList()) {
++
++				AlgoNormalize algo = new AlgoNormalize(cons, c.getLabel(),
++						(GeoList) arg[0]);
++
++				GeoElement[] ret = { algo.getResult() };
++				return ret;
++
++			} else if (!(arg[0] instanceof VectorValue))
++				throw argErr(app, c.getName(), arg[0]);
++
++		default:
++
++			// try to create list of points (eg FitExp[])
++			GeoList list = wrapInList(kernelA, arg, arg.length, GeoClass.POINT);
++			if (list != null) {
++				GeoElement[] ret = { Normalize(c.getLabel(), list) };
++				return ret;
++			}
++
++			throw argNumErr(app, c.getName(), n);
++		}
++	}
++
++	/**
++	 * Normalize[list] Oana Niculaescu
++	 */
++	final private GeoList Normalize(String label, GeoList list) {
++		AlgoNormalize algo = new AlgoNormalize(cons, label, list);
++		GeoList list2 = algo.getResult();
++		return list2;
++	}
++
++}
+Index: src/geogebra/common/kernel/commands/CommandDispatcherBasic.java
+===================================================================
+--- workspace_eclipse/common/src/geogebra/common/kernel/commands/CommandDispatcherBasic.java	(revision 39263)
++++ workspace_eclipse/common/src/geogebra/common/kernel/commands/CommandDispatcherBasic.java	(working copy)
+@@ -34,6 +34,8 @@
+ 			return new CmdLCM(kernel);
+ 		case GCD:
+ 			return new CmdGCD(kernel);
++		case Normalize:
++			return new CmdNormalize(kernel);
+ 		case Object:
+ 			return new CmdObject(kernel);
+ 		case LetterToUnicode:
+Index: src/geogebra/common/kernel/commands/CommandDispatcher.java
+===================================================================
+--- workspace_eclipse/common/src/geogebra/common/kernel/commands/CommandDispatcher.java	(revision 39263)
++++ workspace_eclipse/common/src/geogebra/common/kernel/commands/CommandDispatcher.java	(working copy)
+@@ -486,6 +486,7 @@
+ 			case Join:
+ 			case LCM:
+ 			case GCD:
++			case Normalize:
+ 			case LetterToUnicode:
+ 			case UnicodeToLetter:
+ 			case Object:

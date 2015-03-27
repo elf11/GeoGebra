@@ -1,0 +1,171 @@
+### Eclipse Workspace Patch 1.0
+#P common
+Index: src/geogebra/common/kernel/statistics/AlgoClasses.java
+===================================================================
+--- workspace_eclipse/common/src/geogebra/common/kernel/statistics/AlgoClasses.java	(revision 39263)
++++ workspace_eclipse/common/src/geogebra/common/kernel/statistics/AlgoClasses.java	(working copy)
+@@ -149,29 +149,45 @@
+ 				classList.setUndefined();
+ 
+ 			double width = (maxGeoValue - minGeoValue) / n;
+-			for (int i = 0; i < n; i++) {
+-				classList.add(new GeoNumeric(cons, minGeoValue + i * width));
++			int i = 0;
++			for (i = 0; i < n; i++) {
++				setListElement(i, minGeoValue + i * width);
+ 			}
+-			classList.add(new GeoNumeric(cons, maxGeoValue));
++			setListElement(i, maxGeoValue);
+ 
+ 		}
+ 
+ 		// Create class list using start and width
+ 		// =======================================================
+ 		if (input.length == 3) {
++			int count = 0;
+ 			double value = start.getDouble();
+-			classList.add(new GeoNumeric(cons, value));
++			setListElement(count++, value);
+ 			while (value < maxGeoValue) {
+ 				value = value + width.getDouble();
+-				// System.out.println("value: " + value + "max: " +
+-				// maxGeoValue);
+-				classList.add(new GeoNumeric(cons, value));
++				setListElement(count++, value);
+ 			}
+ 			if (classList.size() < 2)
+ 				classList.setUndefined();
+ 		}
+ 	}
+ 
++	private void setListElement(int index, double value) {
++		GeoNumeric listElement;
++		if (index < classList.getCacheSize()) {
++			// use existing element
++			listElement = (GeoNumeric) classList.getCached(index);
++		} else {
++			listElement = new GeoNumeric(cons);
++			listElement.setParentAlgorithm(this);
++			listElement.setConstructionDefaults();
++			listElement.setUseVisualDefaults(false);
++		}
++
++		classList.add(listElement);
++		listElement.setValue(value);
++	}
++
+ 	// TODO Consider locusequability
+ 
+ }
+Index: src/geogebra/common/kernel/statistics/AlgoTiedRank.java
+===================================================================
+--- workspace_eclipse/common/src/geogebra/common/kernel/statistics/AlgoTiedRank.java	(revision 39263)
++++ workspace_eclipse/common/src/geogebra/common/kernel/statistics/AlgoTiedRank.java	(working copy)
+@@ -96,11 +96,29 @@
+ 		// copy the ranks back into a list
+ 		outputList.setDefined(true);
+ 		outputList.clear();
++
+ 		for (int i = 0; i < size; i++) {
+-			outputList.add(new GeoNumeric(cons, outputArray[i]));
++			setListElement(i, outputArray[i]);
++			// outputList.add(new GeoNumeric(cons, outputArray[i]));
+ 		}
+ 	}
+ 
++	private void setListElement(int index, double value) {
++		GeoNumeric listElement;
++		if (index < outputList.getCacheSize()) {
++			// use existing element
++			listElement = (GeoNumeric) outputList.getCached(index);
++		} else {
++			listElement = new GeoNumeric(cons);
++			listElement.setParentAlgorithm(this);
++			listElement.setConstructionDefaults();
++			listElement.setUseVisualDefaults(false);
++		}
++
++		outputList.add(listElement);
++		listElement.setValue(value);
++	}
++
+ 	// TODO Consider locusequability
+ 
+ }
+Index: src/geogebra/common/kernel/statistics/AlgoOrdinalRank.java
+===================================================================
+--- workspace_eclipse/common/src/geogebra/common/kernel/statistics/AlgoOrdinalRank.java	(revision 39263)
++++ workspace_eclipse/common/src/geogebra/common/kernel/statistics/AlgoOrdinalRank.java	(working copy)
+@@ -114,11 +114,28 @@
+ 		outputList.setDefined(true);
+ 		outputList.clear();
+ 		for (i = 0; i < size; i++) {
+-			outputList.add(new GeoNumeric(cons, list[i]));
++			// outputList.add(new GeoNumeric(cons, list[i]));
++			setListElement(i, list[i]);
+ 		}
+ 
+ 	}
+ 
++	private void setListElement(int index, double value) {
++		GeoNumeric listElement;
++		if (index < outputList.getCacheSize()) {
++			// use existing element
++			listElement = (GeoNumeric) outputList.getCached(index);
++		} else {
++			listElement = new GeoNumeric(cons);
++			listElement.setParentAlgorithm(this);
++			listElement.setConstructionDefaults();
++			listElement.setUseVisualDefaults(false);
++		}
++
++		outputList.add(listElement);
++		listElement.setValue(value);
++	}
++
+ 	private class OrderedPair {
+ 		public double x;
+ 		public int y;
+Index: src/geogebra/common/kernel/algos/AlgoRootList.java
+===================================================================
+--- workspace_eclipse/common/src/geogebra/common/kernel/algos/AlgoRootList.java	(revision 39263)
++++ workspace_eclipse/common/src/geogebra/common/kernel/algos/AlgoRootList.java	(working copy)
+@@ -76,17 +76,36 @@
+ 
+ 		boolean suppressLabelCreation = cons.isSuppressLabelsActive();
+ 		cons.setSuppressLabelCreation(true);
++		int count = 0;
+ 		for (int i = 0; i < size; i++) {
+ 			GeoElement geo = inputList.get(i);
+ 			if (geo.isGeoNumeric()) {
+ 				GeoNumeric num = (GeoNumeric) geo;
+-				outputList.add(new GeoPoint(cons, null, num.getDouble(), 0.0,
+-						1.0));
++				setListElement(i, num.getDouble());
+ 			}
+ 		}
+ 		cons.setSuppressLabelCreation(suppressLabelCreation);
+ 	}
+ 
++	private void setListElement(int index, double value) {
++		GeoPoint listElement;
++		if (index < outputList.getCacheSize()) {
++			// use existing list element
++			listElement = (GeoPoint) outputList.getCached(index);
++		} else {
++			// create a new list element
++			listElement = new GeoPoint(cons);
++			listElement.setParentAlgorithm(this);
++			listElement.setConstructionDefaults();
++			listElement.setUseVisualDefaults(false);
++		}
++
++		// update the new list element to value
++		outputList.add(listElement);
++		listElement.setCoords(value, 0.0, 1.0);
++		
++	}
++
+ 	// TODO Consider locusequability
+ 
+ }
